@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script type="text/javascript" src="http://mbostock.github.com/d3/d3.js"></script>
+</head>
+
+	<style type="text/css" media="screen">
+
+	.slider {
+		width: 600px;
+		height: 15px;
+	}
+	</style>
+	
+<body>
+	<form>  
+		<input id="walls" type="checkbox" name="vehicle" value="Car" checked="checked"  onclick='wallsClick(this);'>Apply walls<br>	
+		<label for="massFader">Mass</label>
+		<input class="slider" type="range" width="500" min="1" max="10000" value="100" id="massFader" step="1" oninput="massFaderUpdate(value)">
+		<output for="massFader" id="faderValue">100</output>
+	</form>
+	
+
+	<div id="info">Info:</div>
+	<div id="infobox"><br></div><br>
+    <div id="viz"></div>
+
+    <script type="text/javascript">
+
+var animationStep = 0.1;
+var animationDelay = 5;
+var animationSmoothness = 0;
+var G = 0.08; // Small: stars are weaker. Large: stars are gravitating stronger.
+
+var stars = [];
+
+var sunMass = 1000000.0;
+var maxMass = 5000000.0;
+
+var xStart;
+var yStart;
+var xEnd;
+var yEnd;
+
+var startTime;
+var endTime;
+
+var loss = 1; // 1 = no loss, < 1 = active loss
+
+var mousePressed = false;
+var serial = 0;
+
+var screenWidth = 1880;
+var screenHeight = 870;
+
+var screenWalls = false;
+
+var faderVal = 100;
+var faderMax = 10000;
+
+
+var trailSpeed = 100;
+
+var sampleSVG = d3.select("#viz")
+    .append("svg")
+    .attr("width", screenWidth)
+    .attr("height", screenHeight); 
+
+
+var line = sampleSVG.append("line")
+    .style("stroke", "white")
+    .attr("x1", 1)
+    .attr("y1", 1)
+    .attr("x2", 500)
+    .attr("y2", 500);	
+
+document.getElementById("walls").checked = screenWalls;
+
+sampleSVG.append("rect")
+    .attr("width", "100%")
+    .attr("height", "100%")
+    .attr("fill", "black");
+
+sampleSVG.on('mousedown', function() {
+	mousePressed = true;
+	xStart = d3.mouse(this)[0];
+	yStart = d3.mouse(this)[1];
+	document.getElementById("infobox").innerHTML = "0";
+	startTime = new Date(); })
+sampleSVG.on('mouseup',function(d) { 
+	endTime = new Date();
+	xEnd = d3.mouse(this)[0];
+	yEnd = d3.mouse(this)[1];
+	mousePressed = false;
+	xSpeed = (xEnd - xStart) / 5;
+	ySpeed = (yEnd - yStart) / 5;
+	//document.write("SpeedX: " + xSpeed + ",    SpeedY: " + ySpeed);
+	//mass = getMassFromTime(endTime - startTime);
+	mass = getMassFromFaderVal(faderVal);
+	serial += 1;
+
+	var radius = getRadiusFromMass(mass);
+	if(radius < 4) { radius = 4; }
+
+	var contour = radius * 0.3;
+	var contourColor = getColorFromMass(mass);
+	
+	var newCircle = sampleSVG.append("circle")
+	.style("stroke", contourColor)
+	.style("fill", "white")
+	.style("stroke-width", contour)
+	.style("opacity", 0.7)
+	.attr("r",  radius)
+	.attr("cx", xStart)
+	.attr("cy", yStart)
+	.attr("speed_x", xSpeed)
+	.attr("speed_y", ySpeed)
+	.attr("serial", serial)
+	.attr("mass", mass)
+		.transition()            
+		.delay(0)            
+		.duration(100)
+		.each("end", animateFirstStep);
+		
+
+	});
+var line = sampleSVG.append("line")
+    .style("stroke", "#002288")
+	.style("stroke-width", 3)
+    .attr("x1", 1)
+    .attr("y1", 1)
+    .attr("x2", 1)
+    .attr("y2", 1);
+sampleSVG.on('mousemove', function() {
+		if(mousePressed == true) {
+
+			var curTime = new Date();
+			var timeElapsed = curTime - startTime;
+			var x = d3.mouse(this)[0];
+			var y = d3.mouse(this)[1];
+			
+			var curMass = Math.round(getMassFromTime(timeElapsed))
+			document.getElementById("infobox").innerHTML = curMass;
+			
+			var color = getColorFromMass(curMass);
+			//document.getElementById("infobox").innerHTML = color;
+			line.attr("x1", xStart);
+			line.attr("y1", yStart);
+			line.attr("x2", x);
+			line.attr("y2", y);
+			line.style("stroke", color);
+		} else {
+			line.attr("x1", 1);
+			line.attr("y1", 1);
+			line.attr("x2", 1);
+			line.attr("y2", 1);
+			line.style("stroke", "#002288");
+		}
+		
+	})
+	
+function massFaderUpdate(val) {
+	document.querySelector('#faderValue').value = val;
+	faderVal = +val;
+}
+	
+function wallsClick() {
+	var walls = document.getElementById("walls").checked;
+	document.getElementById("infobox").innerHTML = walls;
+	
+	/*	
+	if(screenWalls == false) {
+	
+		if(walls == true) {			
+		
+			stars.forEach(function(element) {
+			
+				var x = d3.select(element).attr("cx");
+				var y = d3.select(element).attr("cy");
+		
+				x = +x;
+				y = +y;
+				
+				if(x > 500) {
+					stars.remove(d3.select(element));
+					d3.select(element).remove();
+					
+				}
+				
+			});
+
+		}	
+		
+	}
+	*/
+	
+	screenWalls = walls;
+	
+}
+	
+	
+function displayStarInfo() {
+
+	var cx = d3.select(this).attr("cx");
+	var cy = d3.select(this).attr("cy");
+	var r = d3.select(this).attr("r");
+	var serial = d3.select(this).attr("serial");
+	var mass = d3.select(this).attr("mass");	
+	var speed_x = d3.select(this).attr("speed_x");
+	var speed_y = d3.select(this).attr("speed_y");	
+	
+	mass = Math.round(mass);
+	cx = Math.round(cx);
+	cy = Math.round(cy);
+	r = Math.round(r);
+	speed_x = Math.round(speed_x);
+	speed_y = Math.round(speed_y);
+	
+	var output = "Star #" + serial + ", Mass: " + mass + ", R: " + r + ", (x, y) = " + cx + ", " + cy + "         (speed_x, speed, y) = " + speed_x + ", " + speed_y;
+	
+	document.getElementById("infobox").innerHTML = output;
+
+
+}
+	
+	
+function getColorFromMass(mass) {	
+				
+	var Rcolor = mass / maxMass;			
+	Rcolor = Math.round(Rcolor * 256);
+			
+	var Bcolor = Math.floor((256 - Rcolor) / 2);
+			
+	Rcolor = componentToHex(Rcolor);
+	Bcolor = componentToHex(Bcolor);			
+			
+	var color = "#" + Rcolor + "22" + Bcolor;
+	
+	return color;
+}
+	
+	
+function componentToHex(c) {
+    var hex = c.toString(16);
+    return hex.length == 1 ? "0" + hex : hex;
+}
+
+// Generic function to calculate mass from the fader value
+function getMassFromFaderVal(val) {
+
+	var mass = (val / faderMax) * maxMass;
+	
+	return mass;
+}
+	
+
+// Generic function to calculate mass from time elapsed from mousedown
+function getMassFromTime(time) {
+	var mass = Math.pow(time, 2) / 10;
+	if(mass > maxMass) {
+		mass = maxMass;
+	}
+	
+	return mass;
+}
+
+// Generic function to calculate radius of the star from the mass
+function getRadiusFromMass(mass) {
+	var radius = Math.cbrt(mass)/2;
+	return radius;
+}
+	
+function initSun(){
+	stars.push(this);
+};
+	
+function animateFirstStep(){
+	stars.push(this);
+
+	//d3.select(this).on('mousemove', displayStarInfo);
+	
+    d3.select(this)
+      .transition()            
+        .delay(0)            
+        .duration(0)
+        .each("end", waitAnimation);
+};
+
+function waitAnimation(){
+	var cx = d3.select(this).attr("cx");
+	var cy = d3.select(this).attr("cy");
+	var r = d3.select(this).attr("r");
+	
+	var x = +cx;
+	
+	var speed_x = d3.select(this).attr("speed_x");
+	var speed_y = d3.select(this).attr("speed_y");	
+	
+	speed_x = +speed_x;
+	speed_y = +speed_y;
+	
+	var speed_size = Math.sqrt(Math.pow(speed_x, 2) + Math.pow(speed_y, 2));
+	
+	if(speed_size > trailSpeed) { speed_size = trailSpeed; }
+	var opacity = speed_size / trailSpeed * 0.2;
+	
+	sampleSVG.append("circle")
+		.style("stroke", "black")
+		.style("stroke-opacity", 0.0)
+		.style("fill", "#999999")
+		.attr("r", r)
+		.attr("cx", cx)
+		.attr("cy", cy)
+		.style('opacity', opacity)
+      .transition()
+		.delay(0)
+		.duration(1000)
+		.style('opacity', 0)
+		.each("end", selfKill);
+
+	
+		
+    d3.select(this)
+      .transition()
+		.delay(0)
+        .duration(0)
+		.each("end", updateLocation);
+};
+
+
+
+
+function selfKill() {
+    d3.select(this)
+		.remove();
+};
+
+
+// Calc acceleration for [x,y] imposed to a passive star by an active star
+function calcAcc(mass_pas, x_pas, y_pas, mass_act, x_act, y_act) {
+
+	var x_dist = x_pas - x_act;
+	var y_dist = y_pas - y_act;
+	var dist = Math.sqrt(Math.pow(x_dist, 2) + Math.pow(y_dist, 2));
+	
+	// Gravitational force size
+	var force = G * mass_pas * mass_act / Math.pow(dist, 2);
+	
+	// Calculate [x,y] components of the force
+	var m = Math.abs(x_dist / y_dist);
+	var y_force = force / (Math.sqrt(m*m+1));
+	var x_force = y_force * m;
+	
+	// Determine force sign
+	if(x_pas > x_act) {
+		x_force = -x_force;
+	}
+	
+	if(y_pas > y_act) {
+		y_force = -y_force;
+	}
+	
+	// Apply: a  = F / m
+	x_acc = x_force / mass_pas;
+	y_acc = y_force / mass_pas;
+	
+	return [x_acc, y_acc];
+	
+	
+}
+    
+
+// Update star location by applying forces onto it
+function updateLocation() {
+	
+	
+	// Get current star attributes
+	var star_x = d3.select(this).attr("cx");
+	var star_y = d3.select(this).attr("cy");
+	var speed_x = d3.select(this).attr("speed_x");
+	var speed_y = d3.select(this).attr("speed_y");	
+	var serial = d3.select(this).attr("serial");
+	var r = d3.select(this).attr("r");
+	var mass = d3.select(this).attr("mass");
+	
+	star_x = +star_x;
+	star_y = +star_y;
+	speed_x = +speed_x;
+	speed_y = +speed_y;
+	serial = +serial;
+	r = +r;
+	mass = +mass;
+	
+	// Apply previous step
+	star_x += speed_x*animationStep;
+	star_y += speed_y*animationStep;
+	
+	if(screenWalls) {
+		if(star_x < 0 || star_x > screenWidth) {			
+			speed_x = -speed_x;
+		}
+		if(star_y < 0 || star_y > screenHeight) {			
+			speed_y = -speed_y;
+		}
+	}
+	
+
+	// Get force applied by other stars
+	stars.forEach(function(element) {
+
+		var activeX = d3.select(element).attr("cx");
+		var activeY = d3.select(element).attr("cy");
+		var activeMass = d3.select(element).attr("mass");
+		var activeSerial = d3.select(element).attr("serial");
+		var activeR = d3.select(element).attr("r");
+		
+		activeR = +activeR;
+		activeX = +activeX;
+		activeY = +activeY;
+		activeMass = +activeMass;
+		
+		var dist = Math.sqrt(Math.pow((activeX - star_x), 2) + Math.pow((activeY - star_y), 2));	
+		
+
+		speed_x *= loss;
+		speed_y *= loss;
+
+		if((serial != activeSerial) && (dist > 1.0)) { // Avoid applying force from same star, or from very very close star
+
+			var forces = calcAcc(mass, star_x, star_y, activeMass, activeX, activeY);
+			speed_x += forces[0];
+			speed_y += forces[1];
+		}
+	});
+	
+	// Set new speed
+	d3.select(this)
+		.attr("speed_x", speed_x)
+		.attr("speed_y", speed_y);
+	
+	// Set new location
+    d3.select(this)
+      .transition()
+		.delay(animationDelay)
+		.duration(animationSmoothness)
+        .attr("cx", star_x)
+		.attr("cy", star_y)
+		.each("end", waitAnimation); // Next step
+}
+
+
+
+
+    </script>
+</body>
+</html>
