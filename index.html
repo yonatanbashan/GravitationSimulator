@@ -1,19 +1,23 @@
 <!DOCTYPE html>
 <html>
-<head>
-    <script type="text/javascript" src="http://mbostock.github.com/d3/d3.js"></script>
+  <head>
+    <script type="text/javascript" src="https://d3js.org/d3.v2.js"></script>
+  </head>
 
-</head>
-	
-<body>
-	<form>  
-		<input id="walls" type="checkbox" checked="checked" onclick='wallsClick(this);'>Apply walls<br>	
-	</form>
-	
+  <body>
+    <form>
+      <input
+        id="walls"
+        type="checkbox"
+        checked="checked"
+        onclick="wallsClick(this);"
+      />Apply walls<br />
+    </form>
 
-	<div id="info"></div>
-	<div id="infobox"><br></div><br>
+    <div id="info"></div>
+    <div id="infobox"><br /></div>
+    <br />
     <div id="viz"></div>
     <script type="text/javascript" src="gravitation.js"></script>
-</body>
+  </body>
 </html>
